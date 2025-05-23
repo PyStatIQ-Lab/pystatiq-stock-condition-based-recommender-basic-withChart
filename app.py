@@ -34,11 +34,14 @@ def analyze_stock(symbol):
         return None
     
     try:
-        current_price = round(data['Close'].iloc[-1], 2)
-        open_price = data['Open'].iloc[-1]
-        high_price = data['High'].iloc[-1]
-        low_price = data['Low'].iloc[-1]
+        # Get the last row's values
+        last_row = data.iloc[-1]
+        current_price = round(last_row['Close'], 2)
+        open_price = last_row['Open']
+        high_price = last_row['High']
+        low_price = last_row['Low']
         
+        # Compare scalar values instead of Series
         if open_price == high_price:  # Bearish
             recommendation = "Sell"
             stop_loss = round(current_price * 1.02, 2)
@@ -97,7 +100,8 @@ def plot_stock_chart(data, current_price, stop_loss, target, symbol):
         xaxis_title="Date",
         yaxis_title="Price (₹)",
         showlegend=False,
-        height=600
+        height=600,
+        xaxis_rangeslider_visible=False
     )
     
     st.plotly_chart(fig, use_container_width=True)
