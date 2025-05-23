@@ -29,59 +29,60 @@ def get_stock_data(symbol, period='1d'):
         st.error(f"Error fetching data for {symbol}: {str(e)}")
         return None
 
-def create_tradingview_url(symbol, current_price, stop_loss, target, recommendation):
+def create_tradingview_url(symbol, current_price, stop_loss, target):
     base_url = "https://www.tradingview.com/chart/"
     
-    # Create drawing objects
+    # Create drawing configuration
     drawings = []
     
+    # Current price line (blue)
     if current_price is not None:
         drawings.append({
-            "type": "horizontal_line",
-            "points": [{"time": "0", "price": current_price}],
-            "styles": {
+            "tool": "HorizontalLine",
+            "points": [{"time": 0, "price": current_price}],
+            "options": {
                 "color": "#2962FF",
                 "linestyle": 0,
                 "linewidth": 1,
-                "showLabel": True,
-                "labelText": f"Current: {current_price}",
-                "labelFontSize": 12
+                "axisLabelVisible": True,
+                "title": f"Current: {current_price}"
             }
         })
     
+    # Stop loss line (red)
     if stop_loss is not None:
         drawings.append({
-            "type": "horizontal_line",
-            "points": [{"time": "0", "price": stop_loss}],
-            "styles": {
+            "tool": "HorizontalLine",
+            "points": [{"time": 0, "price": stop_loss}],
+            "options": {
                 "color": "#F44336",
                 "linestyle": 1,
                 "linewidth": 2,
-                "showLabel": True,
-                "labelText": f"SL: {stop_loss}",
-                "labelFontSize": 12
+                "axisLabelVisible": True,
+                "title": f"SL: {stop_loss}"
             }
         })
     
+    # Target line (green)
     if target is not None:
         drawings.append({
-            "type": "horizontal_line",
-            "points": [{"time": "0", "price": target}],
-            "styles": {
+            "tool": "HorizontalLine",
+            "points": [{"time": 0, "price": target}],
+            "options": {
                 "color": "#4CAF50",
                 "linestyle": 1,
                 "linewidth": 2,
-                "showLabel": True,
-                "labelText": f"Target: {target}",
-                "labelFontSize": 12
+                "axisLabelVisible": True,
+                "title": f"Target: {target}"
             }
         })
     
     if drawings:
+        # Convert drawings to JSON and URL encode
         drawings_json = json.dumps(drawings)
         encoded_drawings = urllib.parse.quote(drawings_json)
-        return f"{base_url}?symbol={symbol}&drawings={encoded_drawings}"
-    return f"{base_url}?symbol={symbol}"
+        return f"{base_url}?symbol={symbol}&interval=1D&drawing={encoded_drawings}"
+    return f"{base_url}?symbol={symbol}&interval=1D"
 
 def analyze_stock(symbol):
     data = get_stock_data(symbol)
@@ -103,7 +104,7 @@ def analyze_stock(symbol):
             recommendation = "Neutral"
             stop_loss = target = None
         
-        tv_url = create_tradingview_url(symbol, current_price, stop_loss, target, recommendation)
+        tv_url = create_tradingview_url(symbol, current_price, stop_loss, target)
         
         return {
             'Symbol': symbol,
