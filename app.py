@@ -34,19 +34,19 @@ def analyze_stock(symbol):
         return None
     
     try:
-        # Get the last row's values
+        # Get the last trading day's data
         last_row = data.iloc[-1]
-        current_price = round(last_row['Close'], 2)
-        open_price = last_row['Open']
-        high_price = last_row['High']
-        low_price = last_row['Low']
+        current_price = round(float(last_row['Close']), 2)
+        open_price = float(last_row['Open'])
+        high_price = float(last_row['High'])
+        low_price = float(last_row['Low'])
         
-        # Compare scalar values instead of Series
-        if open_price == high_price:  # Bearish
+        # Compare the specific values
+        if abs(open_price - high_price) < 0.01:  # Bearish (Open ≈ High)
             recommendation = "Sell"
             stop_loss = round(current_price * 1.02, 2)
             target = round(current_price * 0.96, 2)
-        elif open_price == low_price:  # Bullish
+        elif abs(open_price - low_price) < 0.01:  # Bullish (Open ≈ Low)
             recommendation = "Buy"
             stop_loss = round(current_price * 0.98, 2)
             target = round(current_price * 1.04, 2)
@@ -85,12 +85,12 @@ def plot_stock_chart(data, current_price, stop_loss, target, symbol):
                  line_color="blue", annotation_text=f"Current: {current_price}")
     
     # Add stop loss line if available
-    if stop_loss:
+    if stop_loss is not None:
         fig.add_hline(y=stop_loss, line_dash="dash", 
                      line_color="red", annotation_text=f"SL: {stop_loss}")
     
     # Add target line if available
-    if target:
+    if target is not None:
         fig.add_hline(y=target, line_dash="dash", 
                      line_color="green", annotation_text=f"Target: {target}")
     
