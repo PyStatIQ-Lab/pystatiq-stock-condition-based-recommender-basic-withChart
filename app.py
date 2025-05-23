@@ -1,7 +1,8 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
+import urllib.parse
 
 # NIFTY50 symbols with NSE: prefix for TradingView
 NIFTY50_SYMBOLS = [
@@ -30,10 +31,47 @@ def get_stock_data(symbol, period='1d'):
     except:
         return None
 
-# Function to generate TradingView chart URL
-def get_tradingview_url(symbol):
-    base_url = "https://www.tradingview.com/chart/?symbol="
-    return f"{base_url}{symbol}"
+# Function to generate TradingView chart URL with drawings
+def get_tradingview_url(symbol, current_price, stop_loss, target, recommendation):
+    base_url = "https://www.tradingview.com/chart/"
+    
+    # Create drawings for stop loss and target
+    drawings = []
+    
+    if stop_loss is not None:
+        sl_color = "#FF0000"  # Red for stop loss
+        sl_drawing = {
+            "points": [{"time": "0", "price": stop_loss}],
+            "styles": {"color": sl_color, "linestyle": 2, "linewidth": 2},
+            "text": f"SL: {stop_loss}",
+            "type": "horizontal_line"
+        }
+        drawings.append(sl_drawing)
+    
+    if target is not None:
+        target_color = "#00FF00"  # Green for target
+        target_drawing = {
+            "points": [{"time": "0", "price": target}],
+            "styles": {"color": target_color, "linestyle": 2, "linewidth": 2},
+            "text": f"Target: {target}",
+            "type": "horizontal_line"
+        }
+        drawings.append(target_drawing)
+    
+    # Create current price line
+    current_color = "#0000FF"  # Blue for current price
+    current_drawing = {
+        "points": [{"time": "0", "price": current_price}],
+        "styles": {"color": current_color, "linestyle": 0, "linewidth": 1},
+        "text": f"Current: {current_price}",
+        "type": "horizontal_line"
+    }
+    drawings.append(current_drawing)
+    
+    # URL encode the drawings
+    drawings_json = urllib.parse.quote(str(drawings).replace("'", '"'))
+    
+    return f"{base_url}?symbol={symbol}&drawings={drawings_json}"
 
 # Function to analyze stock condition
 def analyze_stock(symbol):
@@ -57,6 +95,9 @@ def analyze_stock(symbol):
         stop_loss = None
         target = None
     
+    # Generate TradingView URL with drawings
+    tv_url = get_tradingview_url(symbol, current_price, stop_loss, target, recommendation)
+    
     return {
         'Symbol': symbol,
         'Current Price': current_price,
@@ -69,13 +110,13 @@ def analyze_stock(symbol):
         'Target': target,
         'Condition': "Open=High (Bearish)" if data['Open'] == data['High'] else 
                     "Open=Low (Bullish)" if data['Open'] == data['Low'] else "No clear pattern",
-        'TradingView Chart': get_tradingview_url(symbol)
+        'TradingView Chart': tv_url
     }
 
 # Main Streamlit app
 def main():
     st.title("NIFTY50 Stock Condition-Based Recommender")
-    st.write("Analyzes NIFTY50 stocks based on Open-High/Low conditions and provides recommendations")
+    st.write("Analyzes NIFTY50 stocks based on Open-High/Low conditions and provides recommendations with TradingView charts")
     
     # User inputs
     analyze_button = st.button("Analyze NIFTY50 Stocks")
@@ -108,18 +149,21 @@ def main():
             
             # Display results
             st.subheader("All Analyzed NIFTY50 Stocks")
-            st.dataframe(results_df)
+            st.dataframe(results_df.drop(columns=['TradingView Chart']))
             
             st.subheader("Actionable Recommendations (Buy/Sell)")
             if not actionable_df.empty:
-                # Convert TradingView URLs to clickable links
-                actionable_df_display = actionable_df.copy()
-                actionable_df_display['TradingView Chart'] = actionable_df_display['TradingView Chart'].apply(
-                    lambda x: f'<a href="{x}" target="_blank">View Chart</a>'
-                )
-                
-                # Display the dataframe with clickable links
-                st.write(actionable_df_display.to_html(escape=False), unsafe_allow_html=True)
+                # Display actionable recommendations with chart links
+                for _, row in actionable_df.iterrows():
+                    st.markdown(f"### {row['Symbol']} - {row['Recommendation']}")
+                    st.markdown(f"""
+                    - **Current Price**: {row['Current Price']}
+                    - **Stop Loss**: {row['Stop Loss']}
+                    - **Target**: {row['Target']}
+                    - **Condition**: {row['Condition']}
+                    - [Open TradingView Chart with Levels]({row['TradingView Chart']})
+                    """)
+                    st.write("---")
                 
                 # Download buttons
                 st.download_button(
