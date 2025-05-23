@@ -25,7 +25,8 @@ def get_stock_data(symbol, period='1d'):
         stock = yf.Ticker(yfinance_symbol)
         hist = stock.history(period=period)
         return hist.iloc[-1] if not hist.empty else None
-    except:
+    except Exception as e:
+        st.error(f"Error fetching data for {symbol}: {str(e)}")
         return None
 
 def create_tradingview_url(symbol, current_price, stop_loss, target, recommendation):
@@ -34,14 +35,13 @@ def create_tradingview_url(symbol, current_price, stop_loss, target, recommendat
     # Create drawing objects
     drawings = []
     
-    # Current price line (blue)
-    if current_price:
+    if current_price is not None:
         drawings.append({
             "type": "horizontal_line",
             "points": [{"time": "0", "price": current_price}],
             "styles": {
                 "color": "#2962FF",
-                "linestyle": 0,  # 0=solid, 1=dotted, 2=dashed
+                "linestyle": 0,
                 "linewidth": 1,
                 "showLabel": True,
                 "labelText": f"Current: {current_price}",
@@ -49,14 +49,13 @@ def create_tradingview_url(symbol, current_price, stop_loss, target, recommendat
             }
         })
     
-    # Stop loss line (red)
-    if stop_loss:
+    if stop_loss is not None:
         drawings.append({
             "type": "horizontal_line",
             "points": [{"time": "0", "price": stop_loss}],
             "styles": {
                 "color": "#F44336",
-                "linestyle": 1,  # dashed
+                "linestyle": 1,
                 "linewidth": 2,
                 "showLabel": True,
                 "labelText": f"SL: {stop_loss}",
@@ -64,14 +63,13 @@ def create_tradingview_url(symbol, current_price, stop_loss, target, recommendat
             }
         })
     
-    # Target line (green)
-    if target:
+    if target is not None:
         drawings.append({
             "type": "horizontal_line",
             "points": [{"time": "0", "price": target}],
             "styles": {
                 "color": "#4CAF50",
-                "linestyle": 1,  # dashed
+                "linestyle": 1,
                 "linewidth": 2,
                 "showLabel": True,
                 "labelText": f"Target: {target}",
@@ -79,42 +77,46 @@ def create_tradingview_url(symbol, current_price, stop_loss, target, recommendat
             }
         })
     
-    # Convert drawings to JSON and URL encode
-    drawings_json = json.dumps(drawings)
-    encoded_drawings = urllib.parse.quote(drawings_json)
-    
-    return f"{base_url}?symbol={symbol}&drawings={encoded_drawings}"
+    if drawings:
+        drawings_json = json.dumps(drawings)
+        encoded_drawings = urllib.parse.quote(drawings_json)
+        return f"{base_url}?symbol={symbol}&drawings={encoded_drawings}"
+    return f"{base_url}?symbol={symbol}"
 
 def analyze_stock(symbol):
     data = get_stock_data(symbol)
-    if not data:
+    if data is None or pd.isna(data['Close']):
         return None
     
-    current_price = round(data['Close'], 2)
-    
-    if data['Open'] == data['High']:  # Bearish
-        recommendation = "Sell"
-        stop_loss = round(current_price * 1.02, 2)
-        target = round(current_price * 0.96, 2)
-    elif data['Open'] == data['Low']:  # Bullish
-        recommendation = "Buy"
-        stop_loss = round(current_price * 0.98, 2)
-        target = round(current_price * 1.04, 2)
-    else:
-        recommendation = "Neutral"
-        stop_loss = target = None
-    
-    tv_url = create_tradingview_url(symbol, current_price, stop_loss, target, recommendation)
-    
-    return {
-        'Symbol': symbol,
-        'Current Price': current_price,
-        'Recommendation': recommendation,
-        'Stop Loss': stop_loss,
-        'Target': target,
-        'Condition': "Bearish" if recommendation == "Sell" else "Bullish" if recommendation == "Buy" else "Neutral",
-        'Chart Link': tv_url
-    }
+    try:
+        current_price = round(float(data['Close']), 2)
+        
+        if data['Open'] == data['High']:  # Bearish
+            recommendation = "Sell"
+            stop_loss = round(current_price * 1.02, 2)
+            target = round(current_price * 0.96, 2)
+        elif data['Open'] == data['Low']:  # Bullish
+            recommendation = "Buy"
+            stop_loss = round(current_price * 0.98, 2)
+            target = round(current_price * 1.04, 2)
+        else:
+            recommendation = "Neutral"
+            stop_loss = target = None
+        
+        tv_url = create_tradingview_url(symbol, current_price, stop_loss, target, recommendation)
+        
+        return {
+            'Symbol': symbol,
+            'Current Price': current_price,
+            'Recommendation': recommendation,
+            'Stop Loss': stop_loss,
+            'Target': target,
+            'Condition': "Bearish" if recommendation == "Sell" else "Bullish" if recommendation == "Buy" else "Neutral",
+            'Chart Link': tv_url
+        }
+    except Exception as e:
+        st.error(f"Error analyzing {symbol}: {str(e)}")
+        return None
 
 def main():
     st.title("NIFTY50 Stock Analyzer with TradingView Charts")
@@ -131,7 +133,7 @@ def main():
         for i, symbol in enumerate(NIFTY50_SYMBOLS):
             status_text.text(f"Processing {symbol} ({i+1}/{len(NIFTY50_SYMBOLS)})")
             result = analyze_stock(symbol)
-            if result:
+            if result is not None:
                 results.append(result)
             progress_bar.progress((i + 1) / len(NIFTY50_SYMBOLS))
         
@@ -146,17 +148,23 @@ def main():
         if not actionable_df.empty:
             for _, row in actionable_df.iterrows():
                 with st.expander(f"{row['Symbol']} - {row['Recommendation']}"):
-                    # Calculate percentage changes
-                    sl_pct = abs(row['Stop Loss']-row['Current Price'])/row['Current Price']*100
-                    target_pct = abs(row['Target']-row['Current Price'])/row['Current Price']*100
-                    
-                    st.markdown(f"""
-                    - **Current Price**: ₹{row['Current Price']}
-                    - **Stop Loss**: ₹{row['Stop Loss']} ({sl_pct:.2f}%)
-                    - **Target**: ₹{row['Target']} ({target_pct:.2f}%)
-                    - **Condition**: {row['Condition']}
-                    - [Open TradingView Chart with Levels]({row['Chart Link']})
-                    """)
+                    if pd.notna(row['Stop Loss']) and pd.notna(row['Target']):
+                        sl_pct = abs(row['Stop Loss']-row['Current Price'])/row['Current Price']*100
+                        target_pct = abs(row['Target']-row['Current Price'])/row['Current Price']*100
+                        
+                        st.markdown(f"""
+                        - **Current Price**: ₹{row['Current Price']}
+                        - **Stop Loss**: ₹{row['Stop Loss']} ({sl_pct:.2f}%)
+                        - **Target**: ₹{row['Target']} ({target_pct:.2f}%)
+                        - **Condition**: {row['Condition']}
+                        - [Open TradingView Chart with Levels]({row['Chart Link']})
+                        """)
+                    else:
+                        st.markdown(f"""
+                        - **Current Price**: ₹{row['Current Price']}
+                        - **Condition**: {row['Condition']}
+                        - [Open TradingView Chart]({row['Chart Link']})
+                        """)
             
             st.download_button(
                 "Download Recommendations",
