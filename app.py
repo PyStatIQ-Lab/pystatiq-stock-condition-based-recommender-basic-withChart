@@ -146,10 +146,14 @@ def main():
         if not actionable_df.empty:
             for _, row in actionable_df.iterrows():
                 with st.expander(f"{row['Symbol']} - {row['Recommendation']}"):
+                    # Calculate percentage changes
+                    sl_pct = abs(row['Stop Loss']-row['Current Price'])/row['Current Price']*100
+                    target_pct = abs(row['Target']-row['Current Price'])/row['Current Price']*100
+                    
                     st.markdown(f"""
                     - **Current Price**: ₹{row['Current Price']}
-                    - **Stop Loss**: ₹{row['Stop Loss']} ({'%.2f%%' % (abs(row['Stop Loss']-row['Current Price'])/row['Current Price']*100})
-                    - **Target**: ₹{row['Target']} ({'%.2f%%' % (abs(row['Target']-row['Current Price'])/row['Current Price']*100})
+                    - **Stop Loss**: ₹{row['Stop Loss']} ({sl_pct:.2f}%)
+                    - **Target**: ₹{row['Target']} ({target_pct:.2f}%)
                     - **Condition**: {row['Condition']}
                     - [Open TradingView Chart with Levels]({row['Chart Link']})
                     """)
